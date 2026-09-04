@@ -1,0 +1,456 @@
+<!--
+===============================================================================
+MAPA WEB INTERACTIVO CON MAPLIBRE Y PMTILES
+===============================================================================
+Este archivo crea un mapa web interactivo a partir del archivo
+cantidad_focos_seccionales.pmtiles generado con Tippecanoe.
+
+El mapa utiliza:
+    - MapLibre GL JS para dibujar el mapa y controlar la interaccion.
+    - El plugin PMTiles para leer las teselas vectoriales desde un unico archivo.
+    - OpenStreetMap como mapa base raster, sin necesidad de API key.
+
+Al abrir el mapa, el codigo:
+    1. Carga las bibliotecas necesarias desde CDN.
+    2. Registra el protocolo PMTiles en MapLibre.
+    3. Crea el mapa y agrega el mapa base.
+    4. Carga la capa vectorial desde el archivo PMTiles local.
+    5. Colorea las zonas segun la cantidad de focos.
+    6. Ajusta automaticamente la vista a los limites guardados en el PMTiles.
+    7. Agrega bordes, resaltado al pasar el mouse y popups al hacer clic.
+    8. Genera una leyenda a partir de los umbrales y colores configurados.
+
+Para reutilizar este archivo con otro proyecto, modifica principalmente el
+objeto CONFIG al comienzo del bloque <script>. Alli se pueden cambiar:
+    - El nombre del archivo PMTiles y de la capa vectorial.
+    - Los nombres de las propiedades del GeoJSON.
+    - Los textos, el idioma y los campos del popup.
+    - La URL y la atribucion del mapa base.
+    - Los colores, umbrales, opacidad y estilos de las lineas.
+    - El centro y zoom de respaldo.
+
+El archivo PMTiles debe estar en la misma carpeta que este index.html cuando
+se utiliza la ruta local definida en CONFIG. El mapa debe servirse mediante
+HTTP, por ejemplo con `python -m http.server 8080`; no debe abrirse con
+file:// porque el navegador necesita realizar peticiones HTTP para cargar el
+archivo PMTiles.
+===============================================================================
+-->
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <!-- Metadatos basicos y titulo de la pagina. -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de focos de incendios por seccional policial</title>
+
+    <!-- Librerias externas: estilos y funcionalidad de MapLibre y PMTiles. -->
+    <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pmtiles@4.4.0/dist/pmtiles.js"></script>
+
+    <style>
+        /* Ajustes generales para que el mapa ocupe toda la ventana. */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        #map { width: 100vw; height: 100vh; }
+
+        /* Panel que muestra los colores y rangos de la variable cartografiada. */
+        #legend {
+            position: absolute;
+            bottom: 30px;
+            left: 10px;
+            background: white;
+            padding: 12px 14px;
+            border-radius: 6px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            font-size: 13px;
+            z-index: 1;
+        }
+        #legend h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .legend-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 3px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 14px;
+            margin-right: 8px;
+            border-radius: 2px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+               /* Panel informativo con el titulo y la descripcion del mapa. */
+        
+        /* ===== titulo — comillas arriba a la derecha ===== */
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: linear-gradient(145deg, #1B4332 0%, #2D6A4F 100%);
+            padding: 14px 18px 16px 18px;
+            border-radius: 10px;
+            border-left: 5px solid #E8813A;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+            font-size: 11px;
+            z-index: 1;
+            max-width: 320px;
+        }
+        #info .quote-mark {
+        position: absolute;
+        top: 6px;
+        right: 14px;
+        font-family: 'Arial Black', Arial, Helvetica, sans-serif;
+        font-weight: 900;
+        font-size: 66px;
+        line-height: 1;
+        color: #E8813A;
+    }
+        #info h3 {
+            margin: 0 26px 5px 0;
+            font-size: 13.6px;
+            font-weight: 700;
+            color: #ffffff;
+            letter-spacing: 0.2px;
+            line-height: 1.25;
+        }
+        #info p {
+            margin: 0;
+            font-size: 11px;
+            color: #E9E4D8;
+            line-height: 1.45;
+        }
+        /* ===== fin titulo— CSS ===== */
+    </style>
+</head>
+<body>
+
+<!-- Contenedor principal donde MapLibre dibuja el mapa. -->
+<div id="map"></div>
+
+<!-- Estos paneles se completan desde JavaScript usando los valores de CONFIG. -->
+<div id="info"></div>
+
+<!-- Aqui comienza la conf para vuelo depto -->
+<div id="controles-mapa" style="position: absolute; top: 155px; left: 16px; z-index: 10; display: flex; flex-direction: column; gap: 6px; font-family: inherit;">
+    <!-- Selector de Departamentos -->
+    <div style="position: relative; display: inline-block; width: 145px;">
+        <select id="departamento-select" style="appearance: none; -webkit-appearance: none; -moz-appearance: none; background-color: #2b4a36; color: white; padding: 6px 28px 6px 10px; font-size: 12px; font-weight: 500; border: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); cursor: pointer; outline: none; width: 100%; height: 30px; line-height: 18px;">
+            <option value="" disabled selected style="background: #2b4a36; color: white;">Departamentos</option>
+            <option value="-56.8,-30.6" style="background: #2b4a36; color: white;">Artigas</option>
+            <option value="-55.9,-34.5" style="background: #2b4a36; color: white;">Canelones</option>
+            <option value="-54.2,-32.3" style="background: #2b4a36; color: white;">Cerro Largo</option>
+            <option value="-57.7,-34.3" style="background: #2b4a36; color: white;">Colonia</option>
+            <option value="-55.6,-32.9" style="background: #2b4a36; color: white;">Durazno</option>
+            <option value="-56.7,-33.6" style="background: #2b4a36; color: white;">Flores</option>
+            <option value="-55.9,-33.9" style="background: #2b4a36; color: white;">Florida</option>
+            <option value="-54.6,-33.8" style="background: #2b4a36; color: white;">Lavalleja</option>
+            <option value="-54.8,-34.5" style="background: #2b4a36; color: white;">Maldonado</option>
+            <option value="-56.2,-34.8" style="background: #2b4a36; color: white;">Montevideo</option>
+            <option value="-57.5,-32.2" style="background: #2b4a36; color: white;">Paysandú</option>
+            <option value="-57.1,-32.7" style="background: #2b4a36; color: white;">Río Negro</option>
+            <option value="-55.5,-31.2" style="background: #2b4a36; color: white;">Rivera</option>
+            <option value="-54.1,-33.8" style="background: #2b4a36; color: white;">Rocha</option>
+            <option value="-56.9,-31.4" style="background: #2b4a36; color: white;">Salto</option>
+            <option value="-56.7,-34.3" style="background: #2b4a36; color: white;">San José</option>
+            <option value="-57.5,-33.4" style="background: #2b4a36; color: white;">Soriano</option>
+            <option value="-55.9,-32.0" style="background: #2b4a36; color: white;">Tacuarembó</option>
+            <option value="-54.4,-33.2" style="background: #2b4a36; color: white;">Treinta y Tres</option>
+        </select>
+        <span style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: white; font-size: 9px; pointer-events: none;">▼</span>
+    </div>
+
+    <!-- Botón Restaurar Vista -->
+    <button id="btn-restaurar" style="background-color: #d46a2a; color: white; padding: 6px 10px; font-size: 12px; font-weight: 500; border: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); cursor: pointer; width: 145px; height: 30px; display: inline-flex; align-items: center; justify-content: center;">
+        Restaurar Vista
+    </button>
+</div>
+<!-- Aqui termina la conf para vuelo depto -->
+
+<div id="legend"></div>
+
+<!-- Logica de configuracion, carga de datos, simbologia e interaccion. -->
+<script>
+    // ===== CONFIGURACION: adapta estos valores a otra capa PMTiles =====
+    const CONFIG = {
+        // --- Archivos y nombres de la capa vectorial ---
+        // Estos valores conectan el HTML con el archivo PMTiles y sus atributos.
+        // Si usas otra capa, cambia cada propiedad para que coincida con sus datos.
+        // Archivo PMTiles que el navegador va a cargar desde esta misma carpeta.
+        pmtilesFile: 'cantidad_focos_seccionales.pmtiles',
+        // Nombre de la capa interna creada por Tippecanoe con la opcion -l.
+        sourceLayer: 'cantidad_focos_seccionales',
+        // Atributo numerico que define el color de cada seccional en la coropleta.
+        valueProperty: 'focos_count',
+        // Atributo usado para identificar la geometria que se resalta al pasar el mouse.
+        hoverProperty: 'codigo_seccional',
+        // Atributo con el nombre del departamento que se muestra en el popup.
+        departmentProperty: 'nomdepto',
+        // Atributo con el nombre de la seccional que se muestra en el popup.
+        sectionProperty: 'nombre_seccional',
+        // Atributo con el codigo de la seccional que se muestra en el popup.
+        sectionCodeProperty: 'codigo_seccional',
+
+        // --- Textos que aparecen en la interfaz y en los popups ---
+        title: 'Focos de incendios forestales por seccional policial',
+        description: 'Distribución de focos de incendios forestales registrados entre abril de 2018 y junio de 2022, por seccional policial. Fuente: Sistema MIRA. Hacé clic en una zona para consultar sus detalles.',
+        valueLabel: 'Focos incendios',
+
+        // Nombres de los campos que se consultan para mostrar datos adicionales
+        // en el popup. El contenido y las etiquetas del popup se crean mas abajo,
+        // dentro del evento map.on('click', 'density-fill', ...).
+        areaProperty: 'area_km2',
+        densityProperty: 'focos_por_km2',
+
+        // Cambia el idioma si tus datos o tu público usan otra configuración regional.
+        locale: 'es-UY',
+
+        // --- Encuadre inicial ---
+        // Se usan solo como respaldo si el PMTiles no informa sus límites.
+        fallbackCenter: [-56.1, -32.9],
+        // Zoom inicial de respaldo: valores altos acercan la vista y valores bajos la alejan.
+        fallbackZoom: 6.5,
+        // Zoom mínimo y máximo permitidos para alejarse o acercarse en el mapa.
+        // Este es un límite duro para TODO el mapa (base y datos): al llegarlo, el zoom se bloquea.
+        // No hace que la capa de datos desaparezca; eso se controla con "maxzoom" en la fuente "density".
+        minZoom: 0,
+        maxZoom: 19,
+        // Separación entre el borde de la capa y el borde de la ventana.
+        fitPadding: 40,
+
+        // --- Mapa base ---
+        // Cambia la URL y la atribución si eliges otro proveedor de mapas.
+        basemapTiles: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        basemapAttribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+
+        // --- Simbologia ---
+        // Cada elemento es [umbral, color]. El primer color se usa por debajo del primer umbral.
+        // Modifica los umbrales y colores para adaptar la leyenda a tus datos.
+        colorSteps: [
+            [0, '#ffffcc'],
+            [1, '#fed976'],
+            [3, '#fd8d3c'],
+            [5, '#e31a1c'],
+            [8, '#bd0026'],
+            [12, '#800026']
+        ],
+        // Transparencia del relleno: 0 es invisible y 1 es completamente opaco.
+        fillOpacity: 0.8,
+        // Estilos de los limites y del resaltado al pasar el mouse.
+        outlineColor: '#333',
+        outlineWidth: 0.5,
+        highlightColor: '#000',
+        highlightWidth: 2.5
+    };
+
+    document.title = CONFIG.title;
+    // Actualiza el titulo de la pestana y el panel informativo con los textos
+    // definidos en CONFIG.
+   
+    // ===== titulo — JS =====
+    document.querySelector('#info').innerHTML = `
+        <div class="quote-mark">&rdquo;</div>
+        <h3>${CONFIG.title}</h3>
+        <p>${CONFIG.description}</p>
+    `;
+    // ===== fin titulo — JS =====
+
+    // Construye la leyenda automaticamente usando los umbrales y colores de CONFIG.
+    document.querySelector('#legend').innerHTML = `<h4>${CONFIG.valueLabel}</h4>${CONFIG.colorSteps.map((step, index) => {
+        const next = CONFIG.colorSteps[index + 1];
+        const label = index === 0
+            ? `&lt; ${next ? next[0] : step[0]}`
+            : next ? `${step[0]} – ${next[0]}` : `${step[0]}+`;
+        return `<div class="legend-row"><div class="legend-color" style="background:${step[1]}"></div> ${label}</div>`;
+    }).join('')}`;
+
+    // Registra el protocolo PMTiles para que MapLibre pueda leer el archivo local.
+    const pmtilesUrl = `pmtiles://${CONFIG.pmtilesFile}`;
+    const protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol('pmtiles', protocol.tile);
+
+    // Crea el mapa con un estilo minimo: en este caso solo se define el mapa base
+    // raster de OpenStreetMap y sus limites de zoom.
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: {
+            version: 8,
+            glyphs: 'https://cdn.protomaps.com/fonts/pbf/{fontstack}/{range}.pbf',
+            sources: {
+                'basemap': {
+                    type: 'raster',
+                    tiles: [CONFIG.basemapTiles],
+                    tileSize: 256,
+                    attribution: CONFIG.basemapAttribution
+                }
+            },
+            layers: [{
+                id: 'basemap-tiles',
+                type: 'raster',
+                source: 'basemap',
+                minzoom: CONFIG.minZoom,
+                maxzoom: CONFIG.maxZoom
+            }]
+        },
+        center: CONFIG.fallbackCenter,
+        zoom: CONFIG.fallbackZoom,
+        maxZoom: CONFIG.maxZoom,
+        minZoom: CONFIG.minZoom
+    });
+
+    // Agrega los controles para acercar, alejar y recuperar la orientacion del mapa.
+    map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+    // Aqui comienza la conf para vuelo depto
+    // Vista general inicial de Uruguay para el boton Restaurar Vista.
+    let vistaInicial = {
+        center: CONFIG.fallbackCenter,
+        zoom: CONFIG.fallbackZoom,
+        pitch: 0,
+        bearing: 0
+    };
+
+document.getElementById('departamento-select').addEventListener('change', (e) => {
+    const coords = e.target.value.split(',');
+    const lng = parseFloat(coords[0]);
+    const lat = parseFloat(coords[1]);
+
+    map.flyTo({
+        center: [lng, lat],
+        zoom: 8,     
+        pitch: 50,     
+        bearing: 10,   
+        speed: 1.2,    
+        curve: 1.42,   
+        essential: true
+    });
+});
+
+document.getElementById('btn-restaurar').addEventListener('click', () => {
+    map.flyTo({
+        ...vistaInicial,
+        speed: 1.5,
+        curve: 1.2,
+        essential: true
+    });
+    document.getElementById('departamento-select').value = '';
+});
+    // Aqui termina la conf para vuelo depto
+
+    // Cuando el mapa termina de cargar, registra la fuente vectorial PMTiles y crea
+    // las capas que representan los datos.
+    map.on('load', () => {
+        map.addSource('density', {
+            type: 'vector',
+            url: pmtilesUrl
+        });
+
+        // PMTiles guarda los limites de la capa; usarlos evita fijar el mapa a un pais.
+        new pmtiles.PMTiles(CONFIG.pmtilesFile).getHeader().then((header) => {
+            if (header.minLon !== undefined) {
+                map.fitBounds([[header.minLon, header.minLat], [header.maxLon, header.maxLat]], {
+                    padding: CONFIG.fitPadding,
+                    maxZoom: CONFIG.maxZoom
+                });
+                map.once('idle', () => {
+                    vistaInicial = {
+                        center: map.getCenter().toArray(),
+                        zoom: map.getZoom(),
+                        pitch: map.getPitch(),
+                        bearing: map.getBearing()
+                    };
+                });
+            }
+        });
+
+        map.addLayer({
+            id: 'density-fill',
+            type: 'fill',
+            source: 'density',
+            'source-layer': CONFIG.sourceLayer,
+            paint: {
+                'fill-color': [
+                    'step',
+                    ['get', CONFIG.valueProperty],
+                    CONFIG.colorSteps[0][1],
+                    ...CONFIG.colorSteps.slice(1).flat()
+                ],
+                'fill-opacity': CONFIG.fillOpacity
+            }
+        });
+
+        map.addLayer({
+            id: 'density-outline',
+            type: 'line',
+            source: 'density',
+            'source-layer': CONFIG.sourceLayer,
+            paint: {
+                'line-color': CONFIG.outlineColor,
+                'line-width': CONFIG.outlineWidth,
+                'line-opacity': 0.7
+            }
+        });
+
+        map.addLayer({
+            id: 'density-highlight',
+            type: 'line',
+            source: 'density',
+            'source-layer': CONFIG.sourceLayer,
+            paint: {
+                'line-color': CONFIG.highlightColor,
+                'line-width': CONFIG.highlightWidth
+            },
+            filter: ['==', CONFIG.hoverProperty, '']
+        });
+    });
+
+    // Aqui se crea el contenido del popup: se eligen los atributos, sus etiquetas
+    // y el formato con el que se muestran al hacer clic en una zona.
+    map.on('click', 'density-fill', (e) => {
+        if (!e.features || e.features.length === 0) return;
+
+        const f = e.features[0].properties;
+
+        // Aqui se crea el contenido HTML del popup: se indican los atributos,
+        // las etiquetas visibles y el formato de cada valor.
+        const html = `
+            <strong>${f[CONFIG.sectionProperty] ?? 'Seccional sin nombre'}</strong><br>
+            Departamento: <strong>${f[CONFIG.departmentProperty]}</strong><br>
+            Seccional: <strong>${f[CONFIG.sectionProperty] ?? 'Sin nombre'}</strong><br>
+            Cod. Seccional: <strong>${f[CONFIG.sectionCodeProperty]}</strong><br>
+            <hr style="margin:4px 0;border:none;border-top:1px solid #ddd">
+            ${CONFIG.valueLabel}: <strong>${Number(f[CONFIG.valueProperty]).toLocaleString(CONFIG.locale)}</strong><br>
+            Área: ${Number(f[CONFIG.areaProperty]).toLocaleString(CONFIG.locale, { maximumFractionDigits: 2 })} km²<br>
+            Densidad: <strong>${Number(f[CONFIG.densityProperty]).toLocaleString(CONFIG.locale, { maximumFractionDigits: 4 })} focos/km²</strong>
+        `;
+
+        // Aqui se crea y se muestra visualmente el popup en la ubicacion del clic.
+        new maplibregl.Popup({ maxWidth: '240px' })
+            .setLngLat(e.lngLat)
+            .setHTML(html)
+            .addTo(map);
+    });
+
+    map.on('mousemove', 'density-fill', (e) => {
+        map.getCanvas().style.cursor = 'pointer';
+        if (e.features && e.features.length > 0) {
+            map.setFilter('density-highlight', [
+                '==', CONFIG.hoverProperty, e.features[0].properties[CONFIG.hoverProperty]
+            ]);
+        }
+    });
+
+    map.on('mouseleave', 'density-fill', () => {
+        map.getCanvas().style.cursor = '';
+        map.setFilter('density-highlight', ['==', CONFIG.hoverProperty, '']);
+    });
+</script>
+
+</body>
+</html>
