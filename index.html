@@ -63,7 +63,7 @@ archivo PMTiles.
 
         /* Estrellas: se dibujan detras del mapa y se ven en el espacio alrededor del planeta. */
         #stars { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
-        #map { position: relative; z-index: 1; width: 100vw; height: 100vh; background: transparent; }
+        #map { position: relative; z-index: 1; width: 100vw; height: 100vh; height: 100dvh; background: transparent; }
 
         /* Panel que muestra los colores y rangos de la variable cartografiada. */
         #legend {
@@ -137,6 +137,12 @@ archivo PMTiles.
         }
         /* ===== fin titulo— CSS ===== */
 
+        /* Controles de vuelo a un departamento y restaurar vista. */
+        #controles-mapa {
+            position: absolute; top: 155px; left: 16px; z-index: 10;
+            display: flex; flex-direction: column; gap: 6px; font-family: inherit;
+        }
+
         /* ============== PORTADA (pantalla previa con el boton ENTRAR) ============== */
         #portada {
             position: fixed; inset: 0; z-index: 100; background: #d46a2a;
@@ -148,7 +154,7 @@ archivo PMTiles.
             margin: auto; width: 100%; max-width: 720px; padding: 32px 24px;
             display: flex; flex-direction: column; align-items: center; text-align: center;
         }
-        .portada-titulo { font-size: 28px; line-height: 1.25; font-weight: 700; letter-spacing: 0.5px; color: #ffffff; margin-bottom: 18px; text-wrap: balance; }
+        .portada-titulo { font-size: 28px; line-height: 1.25; font-weight: 700; letter-spacing: 0.5px; color: #1B4332; margin-bottom: 18px; text-wrap: balance; }
         .portada-texto { max-width: 620px; margin-bottom: 34px; font-size: 16px; line-height: 1.65; font-weight: 500; color: #ffffff; }
         .portada-texto p { margin-bottom: 14px; text-wrap: pretty; }
         .portada-texto p:last-child { margin-bottom: 0; }
@@ -170,7 +176,7 @@ archivo PMTiles.
         #caption {
             position: fixed; left: 0; right: 0; bottom: calc(9vh + 56px); z-index: 50; padding: 0 16px;
             text-align: center; pointer-events: none; opacity: 0; transition: opacity 1s ease;
-            color: #f5efe3; text-shadow: 0 4px 24px rgba(0,0,0,0.75);
+            color: #f5efe3; text-shadow: 0 4px 24px rgba(0,0,0,0.75); text-wrap: balance;
         }
         #caption.show { opacity: 1; }
         #caption .cap-main { font-size: 40px; font-weight: 700; letter-spacing: 3px; }
@@ -207,6 +213,38 @@ archivo PMTiles.
             .portada-texto { font-size: 15px; }
             #caption .cap-main { font-size: 28px; }
         }
+
+        /* ============== CELULAR: panel plegable, controles en fila y leyenda horizontal ============== */
+        .info-flecha { display: none; }
+        @media (pointer: coarse) {
+            .maplibregl-ctrl-group button { width: 38px; height: 38px; }
+        }
+        @media (max-width: 700px), (max-height: 520px) {
+            /* Panel del titulo: cerrado muestra solo el titulo; al tocarlo se despliega la descripcion. */
+            #info { top: 10px; left: 10px; right: 64px; max-width: none; padding: 10px 12px 10px 14px; cursor: pointer; }
+            #info .quote-mark { display: none; }
+            #info h3 { margin: 0 30px 0 0; font-size: 13px; }
+            #info p { display: none; margin-top: 8px; font-size: 12px; }
+            #info.abierto p { display: block; }
+            #info .info-flecha {
+                display: flex; align-items: center; justify-content: center; position: absolute; top: 6px; right: 6px;
+                width: 30px; height: 30px; background: none; border: 0; color: #E8813A; font-size: 12px; cursor: pointer;
+                transition: transform 0.25s ease;
+            }
+            #info.abierto .info-flecha { transform: rotate(180deg); }
+
+            /* Selector de departamentos y boton en una fila, siempre debajo del panel del titulo. */
+            #controles-mapa { top: calc(var(--alto-info, 56px) + 20px); left: 10px; flex-direction: row; }
+            #controles-mapa > div { width: 165px !important; }
+            #controles-mapa select { height: 38px !important; font-size: 16px !important; } /* 16 px evita el zoom automatico de iPhone */
+            #controles-mapa button { width: 130px !important; height: 38px !important; font-size: 14px !important; }
+
+            /* Leyenda horizontal pegada al borde inferior. */
+            #legend { left: 10px; right: 46px; bottom: 12px; padding: 8px 10px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px 3px; }
+            #legend h4 { grid-column: 1 / -1; margin: 0 0 2px; }
+            .legend-row { flex-direction: column; align-items: stretch; margin: 0; text-align: center; font-size: 11px; }
+            .legend-color { width: 100%; margin: 0 0 3px; }
+        }
     </style>
 </head>
 <body class="intro">
@@ -221,7 +259,7 @@ archivo PMTiles.
 <div id="info"></div>
 
 <!-- Aqui comienza la conf para vuelo depto -->
-<div id="controles-mapa" style="position: absolute; top: 155px; left: 16px; z-index: 10; display: flex; flex-direction: column; gap: 6px; font-family: inherit;">
+<div id="controles-mapa">
     <!-- Selector de Departamentos -->
     <div style="position: relative; display: inline-block; width: 145px;">
         <select id="departamento-select" style="appearance: none; -webkit-appearance: none; -moz-appearance: none; background-color: #2b4a36; color: white; padding: 6px 28px 6px 10px; font-size: 12px; font-weight: 500; border: none; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); cursor: pointer; outline: none; width: 100%; height: 30px; line-height: 18px;">
@@ -323,7 +361,7 @@ archivo PMTiles.
             'Podés recorrer el país con el selector de departamentos y volver a la vista general de Uruguay con el botón Restaurar Vista.'
         ],
         // Los dos subtitulos que aparecen durante la intro: primero en el espacio y luego al acercarse.
-        introCaptions: ['Planeta Tierra', 'Uruguay'],
+        introCaptions: ['Focos de Incendios Forestales', 'Uruguay'],
         // Punto de partida de la Tierra [longitud, latitud] y punto al que gira antes de acercarse.
         introStart: [-15, 10],
         introEarthEnd: [-52, -12],
@@ -381,7 +419,22 @@ archivo PMTiles.
         <div class="quote-mark">&rdquo;</div>
         <h3>${CONFIG.title}</h3>
         <p>${CONFIG.description}</p>
+        <button type="button" class="info-flecha" aria-label="Mostrar u ocultar la descripción" aria-expanded="false">▼</button>
     `;
+
+    // En celulares el panel del titulo se pliega: se toca para ver u ocultar la descripcion.
+    // En pantallas grandes este cambio no tiene efecto visual (ver el CSS de celular).
+    const infoEl = document.getElementById('info');
+    infoEl.addEventListener('click', () => {
+        const abierto = infoEl.classList.toggle('abierto');
+        infoEl.querySelector('.info-flecha').setAttribute('aria-expanded', String(abierto));
+    });
+    // Se mide la altura del panel para ubicar los controles justo debajo.
+    if (window.ResizeObserver) {
+        new ResizeObserver(() => {
+            document.documentElement.style.setProperty('--alto-info', infoEl.offsetHeight + 'px');
+        }).observe(infoEl);
+    }
     // ===== fin titulo — JS =====
 
     // Textos de la portada.
