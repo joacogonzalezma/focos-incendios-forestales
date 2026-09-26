@@ -145,32 +145,114 @@ archivo PMTiles.
 
         /* ============== PORTADA (pantalla previa con el boton ENTRAR) ============== */
         #portada {
-            position: fixed; inset: 0; z-index: 100; background: #d46a2a;
+            position: fixed; inset: 0; z-index: 100;
+            background: linear-gradient(170deg, #d76d2c 0%, #d46a2a 55%, #c35e23 100%);
             display: flex; overflow-y: auto;
             transition: opacity 0.9s ease, visibility 0.9s ease;
         }
         #portada.oculta { opacity: 0; visibility: hidden; pointer-events: none; }
+
+        /* Fondo tipo "mesh gradient": manchas de color de marca muy difuminadas, en vez de un liso plano */
+        .portada-mesh {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background-image:
+                radial-gradient(650px 500px at 15% 18%, rgba(45,106,79,0.40), transparent 60%),
+                radial-gradient(600px 480px at 86% 10%, rgba(232,129,58,0.38), transparent 55%),
+                radial-gradient(760px 620px at 80% 90%, rgba(27,67,50,0.45), transparent 60%),
+                radial-gradient(600px 520px at 6% 90%, rgba(243,168,107,0.32), transparent 55%);
+            background-size: 160% 160%;
+            background-position: 0% 0%;
+            animation: portadaMeshDrift 42s ease-in-out infinite alternate;
+        }
+        @keyframes portadaMeshDrift { from { background-position: 0% 0%; } to { background-position: 28% 18%; } }
+        @media (prefers-reduced-motion: reduce) { .portada-mesh { animation: none; } }
+
+        /* Brasas flotando: un efecto de movimiento sutil, ligado a la tematica de incendios */
+        .portada-embers { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .portada-embers span {
+            position: absolute; bottom: -20px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,197,138,0.95), rgba(232,129,58,0.55) 60%, transparent 76%);
+            filter: blur(0.4px);
+            opacity: 0;
+            animation-name: portadaEmberRise; animation-timing-function: ease-in; animation-iteration-count: infinite;
+        }
+        @keyframes portadaEmberRise {
+            0% { transform: translate(0, 0); opacity: 0; }
+            12% { opacity: 0.9; }
+            88% { opacity: 0.35; }
+            100% { transform: translate(var(--drift, 20px), -112vh); opacity: 0; }
+        }
+        .portada-embers span:nth-child(1) { left: 8%;  width: 6px; height: 6px; animation-duration: 15s; animation-delay: 0s;  --drift: 26px; }
+        .portada-embers span:nth-child(2) { left: 22%; width: 4px; height: 4px; animation-duration: 12s; animation-delay: 3s;  --drift: -20px; }
+        .portada-embers span:nth-child(3) { left: 38%; width: 7px; height: 7px; animation-duration: 17s; animation-delay: 1.5s; --drift: 18px; }
+        .portada-embers span:nth-child(4) { left: 55%; width: 5px; height: 5px; animation-duration: 13s; animation-delay: 6s;  --drift: -24px; }
+        .portada-embers span:nth-child(5) { left: 68%; width: 8px; height: 8px; animation-duration: 19s; animation-delay: 2s;  --drift: 22px; }
+        .portada-embers span:nth-child(6) { left: 80%; width: 4px; height: 4px; animation-duration: 12.5s; animation-delay: 8s; --drift: -16px; }
+        .portada-embers span:nth-child(7) { left: 14%; width: 5px; height: 5px; animation-duration: 16s; animation-delay: 10s; --drift: 20px; }
+        .portada-embers span:nth-child(8) { left: 91%; width: 6px; height: 6px; animation-duration: 18s; animation-delay: 4.5s; --drift: -22px; }
+        @media (prefers-reduced-motion: reduce) { .portada-embers { display: none; } }
+
+        /* Franja de acento arriba: une los dos colores de marca en un detalle editorial */
+        #portada::before {
+            content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; z-index: 2;
+            background: linear-gradient(90deg, #1B4332, #E8813A 50%, #1B4332);
+        }
+        /* Vinieta sutil: da profundidad al mesh sin agregar textura ni ruido */
+        #portada::after {
+            content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+            background: radial-gradient(ellipse 80% 65% at 50% 42%, transparent 50%, rgba(0,0,0,0.2) 100%);
+        }
+
         .portada-inner {
-            margin: auto; width: 100%; max-width: 720px; padding: 32px 24px;
+            margin: auto; width: 100%; max-width: 720px; padding: 32px 24px; position: relative; z-index: 3;
             display: flex; flex-direction: column; align-items: center; text-align: center;
         }
-        .portada-titulo { font-size: 28px; line-height: 1.25; font-weight: 700; letter-spacing: 0.5px; color: #1B4332; margin-bottom: 18px; text-wrap: balance; }
-        .portada-texto { max-width: 620px; margin-bottom: 34px; font-size: 16px; line-height: 1.65; font-weight: 500; color: #ffffff; }
-        .portada-texto p { margin-bottom: 14px; text-wrap: pretty; }
+        .portada-inner > * { animation: portadaFadeUp 0.7s ease both; }
+        .portada-inner > *:nth-child(1) { animation-delay: 0.05s; }
+        .portada-inner > *:nth-child(2) { animation-delay: 0.16s; }
+        .portada-inner > *:nth-child(3) { animation-delay: 0.28s; }
+        .portada-inner > *:nth-child(4) { animation-delay: 0.4s; }
+        @keyframes portadaFadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @media (prefers-reduced-motion: reduce) { .portada-inner > * { animation: none; } }
+
+        .portada-titulo { font-size: 32px; line-height: 1.22; font-weight: 800; letter-spacing: 0.2px; color: #1B4332; margin: 0 0 16px 0; text-wrap: balance; }
+        .portada-divider { width: 56px; height: 3px; border-radius: 2px; background: #E8813A; margin: 0 auto 22px; }
+        .portada-texto { max-width: 610px; margin-bottom: 28px; }
+        .portada-texto p { margin: 0 0 12px 0; font-size: 14.5px; line-height: 1.58; font-weight: 500; color: #ffffff; text-wrap: pretty; }
         .portada-texto p:last-child { margin-bottom: 0; }
+        .portada-texto p:first-child { font-size: 16.5px; font-weight: 700; margin-bottom: 14px; }
+
+        .portada-status { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: rgba(232,129,58,0.85); margin-bottom: 8px; transition: opacity 0.4s ease; }
+        .portada-accion.listo .portada-status { opacity: 0; }
+
         .portada-accion { position: relative; width: 220px; height: 48px; display: flex; align-items: center; justify-content: center; }
-        .portada-barra { width: 220px; height: 3px; background: rgba(27, 67, 50, 0.3); border-radius: 2px; overflow: hidden; transition: opacity 0.4s ease; }
-        .portada-barra-relleno { height: 100%; width: 0%; background: #1B4332; transition: width 0.3s ease; }
+        .portada-barra { width: 220px; height: 4px; background: rgba(27, 67, 50, 0.28); border-radius: 3px; overflow: hidden; transition: opacity 0.4s ease; }
+        .portada-barra-relleno { height: 100%; width: 0%; background: linear-gradient(90deg, #163a29, #1B4332); transition: width 0.3s ease; }
         .portada-accion.listo .portada-barra { opacity: 0; }
         .btn-entrar {
             position: absolute; left: 50%; top: 50%; transform: translate(-50%, calc(-50% + 8px));
             opacity: 0; visibility: hidden; white-space: nowrap;
-            background: #1B4332; color: #ffffff; border: 1.5px solid #1B4332; border-radius: 8px;
-            padding: 12px 36px; font-family: inherit; font-size: 13px; font-weight: 800; letter-spacing: 4px; cursor: pointer;
-            transition: opacity 0.5s ease 0.2s, transform 0.5s ease 0.2s, background 0.2s ease, visibility 0s linear 0.2s;
+            display: inline-flex; align-items: center; gap: 9px;
+            background: linear-gradient(180deg, #2D6A4F 0%, #1B4332 100%); color: #ffffff; border: none; border-radius: 9px;
+            padding: 13px 36px; font-family: inherit; font-size: 13px; font-weight: 800; letter-spacing: 4px; cursor: pointer;
+            box-shadow: 0 10px 24px rgba(19,38,29,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+            transition: opacity 0.5s ease 0.2s, transform 0.5s ease 0.2s, box-shadow 0.2s ease, visibility 0s linear 0.2s;
         }
-        .portada-accion.listo .btn-entrar { opacity: 1; visibility: visible; transform: translate(-50%, -50%); }
-        .btn-entrar:hover, .btn-entrar:focus-visible { background: #2D6A4F; border-color: #2D6A4F; outline: none; }
+        .portada-accion.listo .btn-entrar { opacity: 1; visibility: visible; transform: translate(-50%, -50%); animation: portadaBotonPulso 2.6s ease-in-out infinite; }
+        .btn-entrar::after { content: "→"; transition: transform 0.2s ease; }
+        .btn-entrar:hover, .btn-entrar:focus-visible {
+            transform: translate(-50%, -50%) translateY(-2px);
+            box-shadow: 0 14px 30px rgba(19,38,29,0.5), inset 0 1px 0 rgba(255,255,255,0.2);
+            outline: none;
+            animation-play-state: paused;
+        }
+        .btn-entrar:focus-visible { box-shadow: 0 14px 30px rgba(19,38,29,0.5), 0 0 0 3px rgba(232,129,58,0.45); }
+        .btn-entrar:hover::after { transform: translateX(3px); }
+        @keyframes portadaBotonPulso {
+            0%, 100% { box-shadow: 0 10px 24px rgba(19,38,29,0.4), inset 0 1px 0 rgba(255,255,255,0.15), 0 0 0 0 rgba(232,129,58,0.45); }
+            50% { box-shadow: 0 10px 24px rgba(19,38,29,0.4), inset 0 1px 0 rgba(255,255,255,0.15), 0 0 0 9px rgba(232,129,58,0); }
+        }
+        @media (prefers-reduced-motion: reduce) { .portada-accion.listo .btn-entrar { animation: none; } }
 
         /* ============== INTRO EN MODO CINE (solo CSS: no cargan el mapa) ============== */
         #caption {
@@ -208,9 +290,15 @@ archivo PMTiles.
         body.intro #info, body.intro #controles-mapa, body.intro #legend, body.intro .maplibregl-ctrl-top-right { opacity: 0; visibility: hidden; }
         body.intro #map { pointer-events: none; }
 
-        @media (max-width: 600px) {
-            .portada-titulo { font-size: 22px; }
-            .portada-texto { font-size: 15px; }
+        @media (max-width: 680px), (max-height: 700px) {
+            .portada-titulo { font-size: 21px; margin-bottom: 12px; }
+            .portada-divider { margin: 0 auto 14px; width: 42px; }
+            .portada-texto { margin-bottom: 20px; }
+            .portada-texto p { font-size: 13px; margin-bottom: 10px; }
+            .portada-texto p:first-child { font-size: 14.5px; }
+            .portada-accion { width: 200px; }
+            .portada-barra { width: 200px; }
+            .btn-entrar { padding: 11px 26px; font-size: 12px; letter-spacing: 3px; }
             #caption .cap-main { font-size: 28px; }
         }
 
@@ -298,10 +386,16 @@ archivo PMTiles.
 
 <!-- Portada con el boton ENTRAR: el texto y los tiempos se definen en CONFIG. -->
 <div id="portada">
+    <div class="portada-mesh" aria-hidden="true"></div>
+    <div class="portada-embers" aria-hidden="true">
+        <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+    </div>
     <div class="portada-inner">
         <h1 id="portada-titulo" class="portada-titulo"></h1>
+        <div class="portada-divider"></div>
         <div id="portada-texto" class="portada-texto"></div>
         <div id="portada-accion" class="portada-accion">
+            <span class="portada-status" id="portada-status-texto"></span>
             <div class="portada-barra"><div id="portada-barra-relleno" class="portada-barra-relleno"></div></div>
             <button id="btn-entrar" class="btn-entrar" type="button" disabled></button>
         </div>
@@ -598,6 +692,20 @@ document.getElementById('btn-restaurar').addEventListener('click', () => {
     // ================== CARGA, PRECALENTAMIENTO Y PORTADA ==================
     function progreso(pct) {
         document.getElementById('portada-barra-relleno').style.width = pct + '%';
+        actualizarEstadoCarga(pct);
+    }
+
+    // Traduce el porcentaje real de progreso.() a un mensaje de estado, para el HUD de la portada.
+    function actualizarEstadoCarga(pct) {
+        const el = document.getElementById('portada-status-texto');
+        if (!el) return;
+        let texto;
+        if (pct < 15) texto = 'Inicializando mapa…';
+        else if (pct < 25) texto = 'Cargando capa de datos…';
+        else if (pct < 40) texto = 'Calculando encuadre inicial…';
+        else if (pct < 100) texto = 'Precalentando recorrido…';
+        else texto = 'Listo.';
+        el.textContent = texto;
     }
 
     // Espera a que el mapa termine de cargar mosaicos (con tope de tiempo para no quedar trabado).
